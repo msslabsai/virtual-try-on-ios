@@ -24,9 +24,16 @@ export interface TryOnResponse {
 export async function generateVirtualTryOn(
     request: TryOnRequest
 ): Promise<TryOnResponse> {
+<<<<<<< HEAD
     // Only allow Expo public env var so we never read stale server-side/private keys.
     const configuredUrl = process.env.EXPO_PUBLIC_TRYON_API_URL?.trim() || '';
     const API_URL = /^https?:\/\//i.test(configuredUrl) ? configuredUrl : '';
+=======
+    // IMPORTANT: Replace this IP with your computer's local IP address
+    // Find it with: hostname -I (Linux) or ipconfig (Windows) or ifconfig (Mac)
+    // On physical device with Expo Go, use your computer's IP (e.g., 10.243.49.135)
+    const API_URL = process.env.EXPO_PUBLIC_TRYON_API_URL;
+>>>>>>> cfed5f0 (Remove .env file and update .gitignore to exclude environment files; modify aiService to use API_URL directly from environment variables.)
 
     console.log('Using API URL:', API_URL);
 
