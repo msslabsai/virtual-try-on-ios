@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,22 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FabricUploadScreen({ route, navigation }: any) {
     const { modelConfig } = route.params;
-    const [files, setFiles] = useState<{ [key: string]: string | null }>({});
+    const [modelImage, setModelImage] = useState<string | null>(null);
+    const [clothImages, setClothImages] = useState<string[]>([]);
 
-    const isShirt = ['shirt', 'tshirt'].includes(modelConfig.selectedAttire);
-
-    const slots = isShirt
-        ? [
-            { id: 'fabric', label: 'Fabric Image', required: true, icon: 'texture' },
-            { id: 'model', label: 'Model Photo', required: true, icon: 'person' }
-        ]
-        : [
-            { id: 'model', label: 'Model Photo', required: true, icon: 'person' },
-            { id: 'upper', label: 'Upper Wear Fabric', required: true, icon: 'checkroom' },
-            { id: 'bottom', label: 'Bottom Wear Fabric', required: true, icon: 'checkroom' }
-        ];
-
-    const pickImage = async (slotId: string, useCamera: boolean) => {
+    const pickImage = async (useCamera: boolean, onPick: (uri: string) => void) => {
         try {
             let result;
             if (useCamera) {
@@ -43,7 +31,7 @@ export default function FabricUploadScreen({ route, navigation }: any) {
             }
 
             if (!result.canceled) {
-                setFiles(prev => ({ ...prev, [slotId]: result.assets[0].uri }));
+                onPick(result.assets[0].uri);
             }
         } catch (error) {
             Alert.alert('Error', 'Failed to pick image');
@@ -51,24 +39,23 @@ export default function FabricUploadScreen({ route, navigation }: any) {
     };
 
     const handleNext = () => {
-        const missingRequired = slots.filter(slot => slot.required && !files[slot.id]);
-
-        if (missingRequired.length > 0) {
+        if (!modelImage) {
             Alert.alert(
                 'Missing Images',
-                `Please upload images for: ${missingRequired.map(s => s.label).join(', ')}`
+                'Please upload a model photo to continue.'
             );
             return;
         }
 
         // Pass files directly via navigation params
         navigation.navigate('Preview', {
-            previews: files,
+            previews: {
+                model: modelImage,
+                clothImages: clothImages
+            },
             modelConfig
         });
     };
-
-    const hasAnyFile = Object.values(files).some(uri => uri !== null);
 
     return (
         <View className="flex-1 bg-background-dark">
@@ -87,59 +74,103 @@ export default function FabricUploadScreen({ route, navigation }: any) {
 
                     <ScrollView className="flex-1 px-6 pt-6">
                         <Text className="text-2xl font-bold text-white mb-2">
-                            Upload {isShirt ? 'Shirt' : 'Outfit'} Details
+                            Upload Outfit Details
                         </Text>
                         <Text className="text-slate-400 mb-8">
-                            {isShirt
-                                ? 'Provide fabric texture and optional model photo.'
-                                : 'Provide model photo and fabrics for upper/bottom wear.'}
+                            Add one model photo and up to 3 cloth images (max 4 images total).
                         </Text>
 
                         <View className="gap-6 pb-8">
-                            {slots.map((slot) => (
-                                <View key={slot.id} className="bg-surface-dark border border-white/10 rounded-2xl p-4">
-                                    <View className="flex-row items-center justify-between mb-4">
-                                        <View className="flex-row items-center gap-3">
-                                            <View className="w-10 h-10 bg-primary/20 rounded-full items-center justify-center">
-                                                <MaterialIcons name={slot.icon as any} size={20} color="#9333ea" />
-                                            </View>
-                                            <View>
-                                                <Text className="text-white font-bold">{slot.label}</Text>
-                                                <Text className="text-slate-500 text-xs">{slot.required ? 'Required' : 'Optional'}</Text>
-                                            </View>
+                            <View className="bg-surface-dark border border-white/10 rounded-2xl p-4">
+                                <View className="flex-row items-center justify-between mb-4">
+                                    <View className="flex-row items-center gap-3">
+                                        <View className="w-10 h-10 bg-primary/20 rounded-full items-center justify-center">
+                                            <MaterialIcons name="person" size={20} color="#9333ea" />
                                         </View>
-                                        {files[slot.id] && (
-                                            <TouchableOpacity
-                                                onPress={() => setFiles(prev => ({ ...prev, [slot.id]: null }))}
-                                                className="bg-red-500/20 p-2 rounded-full"
-                                            >
-                                                <MaterialIcons name="delete" size={20} color="#ef4444" />
-                                            </TouchableOpacity>
-                                        )}
+                                        <View>
+                                            <Text className="text-white font-bold">Model Photo</Text>
+                                            <Text className="text-slate-500 text-xs">Required</Text>
+                                        </View>
                                     </View>
-
-                                    {files[slot.id] ? (
-                                        <View className="w-full h-48 rounded-xl overflow-hidden bg-black/50">
-                                            <Image source={{ uri: files[slot.id]! }} className="w-full h-full" resizeMode="cover" />
-                                        </View>
-                                    ) : (
-                                        <View className="flex-row gap-3">
-                                            <TouchableOpacity
-                                                onPress={() => pickImage(slot.id, false)}
-                                                className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
-                                            >
-                                                <Text className="text-white font-medium">Gallery</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => pickImage(slot.id, true)}
-                                                className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
-                                            >
-                                                <Text className="text-white font-medium">Camera</Text>
-                                            </TouchableOpacity>
-                                        </View>
+                                    {modelImage && (
+                                        <TouchableOpacity
+                                            onPress={() => setModelImage(null)}
+                                            className="bg-red-500/20 p-2 rounded-full"
+                                        >
+                                            <MaterialIcons name="delete" size={20} color="#ef4444" />
+                                        </TouchableOpacity>
                                     )}
                                 </View>
-                            ))}
+
+                                {modelImage ? (
+                                    <View className="w-full h-48 rounded-xl overflow-hidden bg-black/50">
+                                        <Image source={{ uri: modelImage }} className="w-full h-full" resizeMode="cover" />
+                                    </View>
+                                ) : (
+                                    <View className="flex-row gap-3">
+                                        <TouchableOpacity
+                                            onPress={() => pickImage(false, (uri) => setModelImage(uri))}
+                                            className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
+                                        >
+                                            <Text className="text-white font-medium">Gallery</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => pickImage(true, (uri) => setModelImage(uri))}
+                                            className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
+                                        >
+                                            <Text className="text-white font-medium">Camera</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+
+                            <View className="bg-surface-dark border border-white/10 rounded-2xl p-4">
+                                <View className="flex-row items-center justify-between mb-4">
+                                    <View className="flex-row items-center gap-3">
+                                        <View className="w-10 h-10 bg-primary/20 rounded-full items-center justify-center">
+                                            <MaterialIcons name="checkroom" size={20} color="#9333ea" />
+                                        </View>
+                                        <View>
+                                            <Text className="text-white font-bold">Cloth Images</Text>
+                                            <Text className="text-slate-500 text-xs">Up to 3</Text>
+                                        </View>
+                                    </View>
+                                    <Text className="text-slate-500 text-xs">{clothImages.length}/3</Text>
+                                </View>
+
+                                {clothImages.length > 0 && (
+                                    <View className="gap-3 mb-4">
+                                        {clothImages.map((uri, index) => (
+                                            <View key={`${uri}-${index}`} className="w-full h-40 rounded-xl overflow-hidden bg-black/50 relative">
+                                                <Image source={{ uri }} className="w-full h-full" resizeMode="cover" />
+                                                <TouchableOpacity
+                                                    onPress={() => setClothImages(prev => prev.filter((_, i) => i !== index))}
+                                                    className="absolute top-3 right-3 bg-red-500/80 p-2 rounded-full"
+                                                >
+                                                    <MaterialIcons name="close" size={16} color="white" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+
+                                {clothImages.length < 3 && (
+                                    <View className="flex-row gap-3">
+                                        <TouchableOpacity
+                                            onPress={() => pickImage(false, (uri) => setClothImages(prev => [...prev, uri]))}
+                                            className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
+                                        >
+                                            <Text className="text-white font-medium">Add from Gallery</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => pickImage(true, (uri) => setClothImages(prev => [...prev, uri]))}
+                                            className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
+                                        >
+                                            <Text className="text-white font-medium">Add from Camera</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
                         </View>
                     </ScrollView>
 

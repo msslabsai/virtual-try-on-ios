@@ -1,0 +1,9 @@
+# Backend API
+
+Node.js backend for virtual try-on API
+
+## Ignore
+node_modules/
+uploads/
+.env
+*.log

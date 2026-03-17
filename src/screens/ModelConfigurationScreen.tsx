@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StatusBar, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ATTIRE_OPTIONS = [
     { value: 'saree', label: 'Saree', icon: 'checkroom' }, // Using available icons
@@ -12,14 +13,90 @@ const ATTIRE_OPTIONS = [
     { value: 'indian_rajputi_poshak', label: 'Indian Rajputi Poshak', icon: 'checkroom' }
 ];
 
+const CUSTOM_ATTIRE_STORAGE_KEY = 'custom_attire_options';
+
+type AttireOption = {
+    value: string;
+    label: string;
+    icon: string;
+};
+
 export default function ModelConfigurationScreen({ navigation }: any) {
-    const [selectedAttire, setSelectedAttire] = useState('saree');
+    const [selectedAttires, setSelectedAttires] = useState<string[]>(['saree']);
+    const [customAttires, setCustomAttires] = useState<AttireOption[]>([]);
+    const [newAttireName, setNewAttireName] = useState('');
+
+    useEffect(() => {
+        const loadCustomAttires = async () => {
+            try {
+                const stored = await AsyncStorage.getItem(CUSTOM_ATTIRE_STORAGE_KEY);
+                if (stored) {
+                    const parsed = JSON.parse(stored) as AttireOption[];
+                    if (Array.isArray(parsed)) {
+                        setCustomAttires(parsed);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load custom attire options', error);
+            }
+        };
+        loadCustomAttires();
+    }, []);
+
+    const allAttires = useMemo(() => [...ATTIRE_OPTIONS, ...customAttires], [customAttires]);
+
+    const toggleAttire = (value: string) => {
+        setSelectedAttires(prev =>
+            prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]
+        );
+    };
+
+    const toSlug = (input: string) =>
+        input
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/g, '');
+
+    const handleAddAttire = async () => {
+        const trimmed = newAttireName.trim();
+        if (!trimmed) {
+            Alert.alert('Missing Name', 'Please enter a dress name.');
+            return;
+        }
+
+        const baseValue = toSlug(trimmed);
+        const exists = allAttires.some(option => option.value === baseValue || option.label.toLowerCase() === trimmed.toLowerCase());
+        if (exists) {
+            Alert.alert('Already Exists', 'This dress name is already in your catalogue.');
+            return;
+        }
+
+        const newOption: AttireOption = {
+            value: baseValue || `custom_${Date.now()}`,
+            label: trimmed,
+            icon: 'checkroom'
+        };
+
+        const updated = [...customAttires, newOption];
+        setCustomAttires(updated);
+        setNewAttireName('');
+        try {
+            await AsyncStorage.setItem(CUSTOM_ATTIRE_STORAGE_KEY, JSON.stringify(updated));
+        } catch (error) {
+            console.error('Failed to save custom attire options', error);
+        }
+    };
 
     const handleContinue = () => {
+        if (selectedAttires.length === 0) {
+            Alert.alert('Select Outfit', 'Please select at least one outfit to continue.');
+            return;
+        }
         navigation.navigate('FabricUpload', {
             modelConfig: {
                 selectedGender: 'Female',
-                selectedAttire: selectedAttire
+                selectedAttires: selectedAttires
             }
         });
     };
@@ -49,31 +126,50 @@ export default function ModelConfigurationScreen({ navigation }: any) {
                             Choose the type of clothing you want to visualize.
                         </Text>
 
+                        <View className="mb-8">
+                            <Text className="text-slate-400 text-sm font-bold uppercase mb-3">Add Custom Outfit</Text>
+                            <View className="flex-row gap-3">
+                                <TextInput
+                                    value={newAttireName}
+                                    onChangeText={setNewAttireName}
+                                    placeholder="Add dress name"
+                                    placeholderTextColor="#64748b"
+                                    className="flex-1 bg-surface-dark border border-white/10 rounded-xl px-4 py-3 text-white"
+                                />
+                                <TouchableOpacity
+                                    onPress={handleAddAttire}
+                                    className="bg-primary px-4 rounded-xl items-center justify-center"
+                                >
+                                    <Text className="text-white font-bold">Add</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
                         <View className="gap-4">
-                            {ATTIRE_OPTIONS.map((option) => (
+                            {allAttires.map((option) => (
                                 <TouchableOpacity
                                     key={option.value}
-                                    onPress={() => setSelectedAttire(option.value)}
-                                    className={`flex-row items-center p-4 rounded-2xl border ${selectedAttire === option.value
+                                    onPress={() => toggleAttire(option.value)}
+                                    className={`flex-row items-center p-4 rounded-2xl border ${selectedAttires.includes(option.value)
                                         ? 'bg-primary/20 border-primary'
                                         : 'bg-surface-dark border-white/10'
                                         }`}
                                 >
-                                    <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${selectedAttire === option.value ? 'bg-primary' : 'bg-white/10'
+                                    <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${selectedAttires.includes(option.value) ? 'bg-primary' : 'bg-white/10'
                                         }`}>
                                         <MaterialIcons
                                             name={option.icon as any}
                                             size={24}
-                                            color={selectedAttire === option.value ? 'white' : '#94a3b8'}
+                                            color={selectedAttires.includes(option.value) ? 'white' : '#94a3b8'}
                                         />
                                     </View>
                                     <View className="flex-1">
-                                        <Text className={`text-lg font-bold ${selectedAttire === option.value ? 'text-white' : 'text-slate-300'
+                                        <Text className={`text-lg font-bold ${selectedAttires.includes(option.value) ? 'text-white' : 'text-slate-300'
                                             }`}>
                                             {option.label}
                                         </Text>
                                     </View>
-                                    {selectedAttire === option.value && (
+                                    {selectedAttires.includes(option.value) && (
                                         <MaterialIcons name="check-circle" size={24} color="#9333ea" />
                                     )}
                                 </TouchableOpacity>

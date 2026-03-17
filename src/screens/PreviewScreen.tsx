@@ -25,11 +25,9 @@ export default function PreviewScreen({ route, navigation }: any) {
         try {
             const result = await generateVirtualTryOn({
                 gender: modelConfig.selectedGender,
-                clothType: modelConfig.selectedAttire,
-                fabricImage: previews.fabric,
+                clothChoices: modelConfig.selectedAttires || [modelConfig.selectedAttire],
                 modelImage: previews.model,
-                upperFabricImage: previews.upper,
-                bottomFabricImage: previews.bottom,
+                clothImages: previews.clothImages || [],
                 modelFit,
                 backgroundScene,
                 additionalNotes

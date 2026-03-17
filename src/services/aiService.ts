@@ -1,10 +1,11 @@
 export interface TryOnRequest {
     gender: string;
-    clothType: string;
-    fabricImage?: string; // URI
+    clothChoices?: string[];
+    fabricImage?: string; // URI (legacy)
     modelImage?: string; // URI
-    upperFabricImage?: string; // URI
-    bottomFabricImage?: string; // URI
+    upperFabricImage?: string; // URI (legacy)
+    bottomFabricImage?: string; // URI (legacy)
+    clothImages?: string[]; // URIs
     modelFit?: string;
     backgroundScene?: string;
     additionalNotes?: string;
@@ -23,15 +24,18 @@ export interface TryOnResponse {
 export async function generateVirtualTryOn(
     request: TryOnRequest
 ): Promise<TryOnResponse> {
-    // Replace with your actual webhook URL
-    // Note: If running on a physical device, replace 'localhost' with your computer's IP address (e.g., 192.168.1.x)
-    const WEBHOOK_URL = 'https://sahilpandey2004.app.n8n.cloud/webhook/168e5b99-ebb5-406c-af43-982a709c9e1a';
+    // IMPORTANT: Replace this IP with your computer's local IP address
+    // Find it with: hostname -I (Linux) or ipconfig (Windows) or ifconfig (Mac)
+    // On physical device with Expo Go, use your computer's IP (e.g., 10.243.49.135)
+    const API_URL = process.env.EXPO_PUBLIC_TRYON_API_URL || 'http://10.243.49.135:3000/api/virtual-tryon';
 
-    if (!WEBHOOK_URL) {
-        console.error('Webhook URL not configured');
+    console.log('Using API URL:', API_URL);
+
+    if (!API_URL) {
+        console.error('API URL not configured');
         return {
             success: false,
-            error: 'Webhook URL not configured.',
+            error: 'API URL not configured.',
         };
     }
 
@@ -49,39 +53,53 @@ export async function generateVirtualTryOn(
             });
         };
 
-        appendImage('image', request.fabricImage);
         appendImage('model_image', request.modelImage);
+
+        // Legacy single images
+        appendImage('image', request.fabricImage);
         appendImage('upper_fabric', request.upperFabricImage);
         appendImage('bottom_fabric', request.bottomFabricImage);
 
+        // Multiple cloth images
+        if (request.clothImages && request.clothImages.length > 0) {
+            request.clothImages.forEach((uri, index) => {
+                appendImage(`cloth_images[${index}]`, uri);
+            });
+        }
+
         formData.append('gender', request.gender);
-        formData.append('clothType', request.clothType);
+        if (request.clothChoices && request.clothChoices.length > 0) {
+            formData.append('clothChoices', JSON.stringify(request.clothChoices));
+        }
         formData.append('size', request.modelFit || 'M');
         formData.append('backgroundScene', request.backgroundScene || 'Studio');
         if (request.additionalNotes) {
             formData.append('additionalNotes', request.additionalNotes);
         }
 
-        console.log('Sending request to webhook...');
+        console.log('Sending request to API...', { 
+            url: API_URL,
+            modelImage: !!request.modelImage,
+            clothImagesCount: request.clothImages?.length || 0
+        });
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-        const response = await fetch(WEBHOOK_URL, {
+        const response = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'Accept': 'image/*',
-                'Content-Type': 'multipart/form-data',
-            },
             body: formData,
             signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
+        console.log('Response status:', response.status);
+
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error');
-            throw new Error(`Webhook request failed: ${response.status} ${errorText}`);
+            console.error('API Error:', errorText);
+            throw new Error(`API request failed: ${response.status} ${errorText}`);
         }
 
         // Get the binary image response
