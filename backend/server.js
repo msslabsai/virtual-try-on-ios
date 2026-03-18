@@ -8,13 +8,8 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-preview';
-
-if (!GEMINI_API_KEY) {
-    console.error('Missing GEMINI_API_KEY in backend/.env');
-    process.exit(1);
-}
+const RAW_MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image';
+const MODEL_NAME = RAW_MODEL_NAME.replace(/^models\//, '');
 
 // Configure multer for file uploads
 const uploadsDir = path.resolve(__dirname, 'uploads');
@@ -195,19 +190,10 @@ Instructions:
 
 Output: A single high-quality, photorealistic image showing the complete virtual try-on result.`;
 
-        console.log('Calling Gemini 3 Pro Image Preview for image generation...');
-        console.log('Prompt (attempt 1):\n', prompt);
+        console.log(`Calling Gemini model "${MODEL_NAME}" for image generation...`);
 
-        // Use Gemini image model with explicit system instruction
-        const model = genAI.getGenerativeModel({
-            model: GEMINI_IMAGE_MODEL,
-            systemInstruction: `You are a fashion virtual try-on image generator.
-Always return an image result and never ask the user for more inputs.
-Preserve identity from model reference image when provided.
-Strictly follow requested clothing choice, fit, background, and notes.
-Prefer portrait composition for fashion outputs.`
-        });
-        console.log('Gemini model:', GEMINI_IMAGE_MODEL);
+        // Model is configurable via GEMINI_MODEL env var
+        const model = genAI.getGenerativeModel({ model: MODEL_NAME });
         
         console.log('Prompt config:', {
             clothChoice: normalizedClothChoice,
