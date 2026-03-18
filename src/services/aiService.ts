@@ -38,10 +38,11 @@ export async function generateVirtualTryOn(
         };
     }
 
-    try {
-        const startTime = Date.now();
-        const formData = new FormData();
+    const startTime = Date.now();
+    const maxAttempts = 3;
 
+    const buildFormData = () => {
+        const formData = new FormData();
         const appendImage = (name: string, uri: string | undefined) => {
             if (!uri) return;
             // @ts-ignore: React Native FormData expects this object shape
@@ -75,55 +76,92 @@ export async function generateVirtualTryOn(
         if (request.additionalNotes) {
             formData.append('additionalNotes', request.additionalNotes);
         }
+        return formData;
+    };
 
-        console.log('Sending request to API...', { 
-            url: API_URL,
-            modelImage: !!request.modelImage,
-            clothImagesCount: request.clothImages?.length || 0
-        });
+    const isRetryableNetworkError = (message: string) => {
+        const lower = message.toLowerCase();
+        return (
+            lower.includes('network request failed') ||
+            lower.includes('failed to fetch') ||
+            lower.includes('load failed') ||
+            lower.includes('aborterror') ||
+            lower.includes('timed out') ||
+            lower.includes('socket') ||
+            lower.includes('connection')
+        );
+    };
 
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+        const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
+        try {
+            const formData = buildFormData();
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal,
-        });
+            console.log('Sending request to API...', {
+                url: API_URL,
+                modelImage: !!request.modelImage,
+                clothImagesCount: request.clothImages?.length || 0,
+                attempt,
+                maxAttempts
+            });
 
-        clearTimeout(timeoutId);
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal,
+            });
 
-        console.log('Response status:', response.status);
+            clearTimeout(timeoutId);
 
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            console.error('API Error:', errorText);
-            throw new Error(`API request failed: ${response.status} ${errorText}`);
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Unknown error');
+                console.error('API Error:', errorText);
+                throw new Error(`API request failed: ${response.status} ${errorText}`);
+            }
+
+            // Get the binary image response
+            const blob = await response.blob();
+
+            // Convert blob to base64 for display in React Native
+            const reader = new FileReader();
+            const imageUrl = await new Promise<string>((resolve, reject) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+
+            const processingTime = Date.now() - startTime;
+
+            return {
+                success: true,
+                imageUrl: imageUrl,
+                processingTime,
+            };
+        } catch (error) {
+            clearTimeout(timeoutId);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const shouldRetry = attempt < maxAttempts && isRetryableNetworkError(errorMessage);
+
+            if (shouldRetry) {
+                const delayMs = attempt * 2000;
+                console.warn(`Try-on request interrupted; retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;
+            }
+
+            console.error('Error generating try-on:', error);
+            return {
+                success: false,
+                error: errorMessage,
+            };
         }
-
-        // Get the binary image response
-        const blob = await response.blob();
-
-        // Convert blob to base64 for display in React Native
-        const reader = new FileReader();
-        const imageUrl = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-
-        const processingTime = Date.now() - startTime;
-
-        return {
-            success: true,
-            imageUrl: imageUrl,
-            processingTime,
-        };
-    } catch (error) {
-        console.error('Error generating try-on:', error);
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-        };
     }
+
+    return {
+        success: false,
+        error: 'Request failed after retries due to network interruption.',
+    };
 }

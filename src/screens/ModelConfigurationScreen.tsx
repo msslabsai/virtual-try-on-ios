@@ -44,6 +44,7 @@ export default function ModelConfigurationScreen({ navigation }: any) {
     }, []);
 
     const allAttires = useMemo(() => [...ATTIRE_OPTIONS, ...customAttires], [customAttires]);
+    const customAttireValues = useMemo(() => new Set(customAttires.map(option => option.value)), [customAttires]);
 
     const selectAttire = (value: string) => {
         setSelectedAttire(value);
@@ -86,6 +87,21 @@ export default function ModelConfigurationScreen({ navigation }: any) {
         }
     };
 
+    const handleDeleteCustomAttire = async (value: string) => {
+        const updated = customAttires.filter(option => option.value !== value);
+        setCustomAttires(updated);
+
+        if (selectedAttire === value) {
+            setSelectedAttire(ATTIRE_OPTIONS[0].value);
+        }
+
+        try {
+            await AsyncStorage.setItem(CUSTOM_ATTIRE_STORAGE_KEY, JSON.stringify(updated));
+        } catch (error) {
+            console.error('Failed to delete custom attire option', error);
+        }
+    };
+
     const handleContinue = () => {
         if (!selectedAttire) {
             Alert.alert('Select Outfit', 'Please select an outfit to continue.');
@@ -118,7 +134,11 @@ export default function ModelConfigurationScreen({ navigation }: any) {
                         </View>
                     </View>
 
-                    <ScrollView className="flex-1 px-6 pt-8">
+                    <ScrollView
+                        className="flex-1 px-6 pt-8"
+                        contentContainerStyle={{ paddingBottom: 120 }}
+                        showsVerticalScrollIndicator={false}
+                    >
                         <Text className="text-3xl font-bold text-white mb-2">
                             Select Your Outfit
                         </Text>
@@ -146,7 +166,9 @@ export default function ModelConfigurationScreen({ navigation }: any) {
                         </View>
 
                         <View className="gap-4">
-                            {allAttires.map((option) => (
+                            {allAttires.map((option) => {
+                                const isCustom = customAttireValues.has(option.value);
+                                return (
                                 <TouchableOpacity
                                     key={option.value}
                                     onPress={() => selectAttire(option.value)}
@@ -169,11 +191,23 @@ export default function ModelConfigurationScreen({ navigation }: any) {
                                             {option.label}
                                         </Text>
                                     </View>
+                                    {isCustom && (
+                                        <TouchableOpacity
+                                            onPress={(event) => {
+                                                event.stopPropagation();
+                                                handleDeleteCustomAttire(option.value);
+                                            }}
+                                            className="p-2 mr-1 bg-red-500/15 rounded-full"
+                                        >
+                                            <MaterialIcons name="close" size={18} color="#f87171" />
+                                        </TouchableOpacity>
+                                    )}
                                     {selectedAttire === option.value && (
                                         <MaterialIcons name="check-circle" size={24} color="#9333ea" />
                                     )}
                                 </TouchableOpacity>
-                            ))}
+                                );
+                            })}
                         </View>
                     </ScrollView>
 
