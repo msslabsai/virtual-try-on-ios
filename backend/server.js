@@ -120,6 +120,23 @@ function isDesiredPortrait(dimensions) {
     return Math.abs(ratio - target) <= 0.035;
 }
 
+function normalizeAdditionalNotes(rawNotes) {
+    const notes = String(rawNotes || '').trim().replace(/\s+/g, ' ');
+    if (!notes) return '';
+    return notes.slice(0, 600);
+}
+
+function buildAdditionalNotesSection(notes) {
+    if (!notes) {
+        return '- Additional notes: none.';
+    }
+    return `- Additional notes (strict requirements): ${notes}`;
+}
+
+function logPrompt(attemptLabel, prompt) {
+    console.log(`Prompt (${attemptLabel}):\n${prompt}`);
+}
+
 async function generateImageWithStructuredPrompt(model, userPrompt, imageParts = []) {
     return model.generateContent({
         contents: [
@@ -155,9 +172,15 @@ app.post('/api/virtual-tryon', upload.any(), async (req, res) => {
             additionalNotes = ''
         } = req.body;
         const normalizedClothChoice = String(clothChoice || 'outfit').trim();
+        const normalizedAdditionalNotes = normalizeAdditionalNotes(additionalNotes);
+        const additionalNotesSection = buildAdditionalNotesSection(normalizedAdditionalNotes);
 
-        // Find model image and cloth images
-        const modelImageFile = uploadedFiles.find(f => f.fieldname === 'model_image');
+        // Find model image and cloth images (model image is optional)
+        const modelImageFile = uploadedFiles.find(f =>
+            f.fieldname === 'model_image' ||
+            f.fieldname === 'modelImage' ||
+            f.fieldname === 'model'
+        );
         const referenceImageFiles = uploadedFiles.filter(f => f.fieldname.startsWith('cloth_images'));
 
         if (referenceImageFiles.length === 0) {
@@ -168,6 +191,9 @@ app.post('/api/virtual-tryon', upload.any(), async (req, res) => {
         // Prepare images for Gemini
         const modelPart = modelImageFile ? fileToGenerativePart(modelImageFile.path, 'image/jpeg') : null;
         const referenceParts = referenceImageFiles.map(f => fileToGenerativePart(f.path, 'image/jpeg'));
+        if (!modelPart) {
+            console.log('No model image provided; proceeding with cloth reference image(s) only.');
+        }
 
         // Build prompt
         const prompt = `You are an expert fashion AI assistant specializing in virtual try-on visualization.
@@ -179,18 +205,21 @@ Details:
 - Clothing Choice: ${normalizedClothChoice}
 - Size/Fit: ${size}
 - Background Scene: ${backgroundScene}
-${additionalNotes ? `- Additional Requirements: ${additionalNotes}` : ''}
+${additionalNotesSection}
 
 Instructions:
-1. Analyze the provided reference image(s). If they are clothing images, apply the exact texture, color, and pattern.
-2. If a reference image is not clothing (for example landscape/object/photo), still generate a valid outfit by using the image as visual inspiration (palette, mood, texture cues), and DO NOT ask for another image.
-3. ${modelPart ? "Use the provided model image as identity reference and preserve the person's face, body proportions, pose, and lighting." : "No model image is provided; generate a realistic female fashion model that matches the requested size/fit and garment styling."}
-4. The final outfit must strictly match Clothing Choice "${normalizedClothChoice}" and must not change to any other garment type.
-5. Ensure the clothing fit follows size ${size} and drapes naturally.
-6. Use a ${backgroundScene.toLowerCase()} background setting.
-7. Produce a clean, high-detail, studio-quality output with realistic shadows and edges.
-8. Generate the image in portrait 1080x1920 (9:16) composition.
-9. Return an image output directly.
+1. Always use all provided reference image(s) as the primary source of truth. Never ignore them.
+2. Analyze the provided reference image(s). If they are clothing images, apply the exact texture, color, and pattern.
+3. If a reference image is not clothing (for example landscape/object/photo), still generate a valid outfit by using the image as visual inspiration (palette, mood, texture cues), and DO NOT ask for another image.
+4. ${modelPart ? "Use the provided model image as identity reference and preserve the person's face, body proportions, pose, and lighting." : "No model image is provided; generate a realistic female fashion model that matches the requested size/fit and garment styling."}
+5. The final outfit must strictly match Clothing Choice "${normalizedClothChoice}" and must not change to any other garment type.
+6. Ensure the clothing fit follows size ${size} and drapes naturally.
+7. Use a ${backgroundScene.toLowerCase()} background setting.
+8. Produce a clean, high-detail, studio-quality output with realistic shadows and edges.
+9. Generate the image in portrait 1080x1920 (9:16) composition.
+10. Strictly follow Additional notes together with all primary prompt constraints.
+11. Additional notes are mandatory and must be applied, but without violating identity preservation, garment type, fit, and reference-image fidelity.
+12. Return an image output directly.
 
 Output: A single high-quality, photorealistic image showing the complete virtual try-on result.`;
 
@@ -204,123 +233,49 @@ Output: A single high-quality, photorealistic image showing the complete virtual
             hasModelImage: Boolean(modelPart),
             referenceImages: referenceParts.length,
             size,
-            backgroundScene
+            backgroundScene,
+            additionalNotes: normalizedAdditionalNotes || 'none'
         });
 
-        const contentParts = [prompt, ...(modelPart ? [modelPart] : []), ...referenceParts];
+        const inputImageParts = [...(modelPart ? [modelPart] : []), ...referenceParts];
         console.log('Gemini attempt 1: primary prompt');
-        const result = await generateImageWithStructuredPrompt(model, prompt, [...(modelPart ? [modelPart] : []), ...referenceParts]);
+        logPrompt('attempt 1', prompt);
+        const result = await generateImageWithStructuredPrompt(model, prompt, inputImageParts);
         let response = await result.response;
 
         let imagePart = extractImagePartFromResponse(response);
         let text = response.text ? response.text() : '';
 
         if (!imagePart) {
-            console.log('Gemini text-only response. Retrying with stricter image-only instructions...');
-            const retryPrompt = `Generate only one photorealistic fashion image now.
+            console.log('Gemini text-only response. Retrying once with strict image-only instruction...');
+            const retryPrompt = `Generate exactly one photorealistic fashion image now.
 - Never ask for another input.
+- Always use all provided reference image(s) as primary source of truth and never ignore them.
 - If reference image is not clothing, infer outfit design from its colors/textures and create wearable ${normalizedClothChoice}.
 - Keep garment type strictly as: ${normalizedClothChoice}.
 - ${modelPart ? "Preserve the model identity, face, body shape, pose, and lighting from the model image." : "Create a realistic female fashion model."}
 - Size: ${size}
 - Background: ${backgroundScene}
 - Gender: ${gender}
-- Additional notes: ${additionalNotes || 'None'}
+- Additional notes (strict requirements): ${normalizedAdditionalNotes || 'None'}
+- Strictly follow additional notes together with all primary constraints.
+- Additional notes must be applied, but without violating identity, garment type, fit, or reference-image fidelity.
 - Resolution/composition: portrait 1080x1920 (9:16).
-Output must be an image.`;
+Output must be an image only.`;
 
-            console.log('Prompt (attempt 2):\n', retryPrompt);
-            console.log('Gemini attempt 2: strict image-only prompt');
-            const retryResult = await generateImageWithStructuredPrompt(model, retryPrompt, [...(modelPart ? [modelPart] : []), ...referenceParts]);
+            logPrompt('attempt 2', retryPrompt);
+            console.log('Gemini attempt 2: strict no-image fallback');
+            const retryResult = await generateImageWithStructuredPrompt(model, retryPrompt, inputImageParts);
             response = await retryResult.response;
             imagePart = extractImagePartFromResponse(response);
             text = response.text ? response.text() : text;
         }
 
-        if (!imagePart) {
-            console.log('Second attempt was text-only. Retrying with generic fashion generation fallback...');
-            const genericFallbackPrompt = `Create one photorealistic image of a ${gender.toLowerCase()} model wearing a ${normalizedClothChoice}, size ${size}, in ${backgroundScene.toLowerCase()} setting.
-Use any provided reference images only for inspiration.
-Keep garment type strictly as: ${normalizedClothChoice}.
-${modelPart ? "Preserve the exact person identity from the provided model image." : "Create a realistic female fashion model."}
-Additional notes: ${additionalNotes || 'None'}.
-Resolution/composition: portrait 1080x1920 (9:16).
-Do not ask questions. Return image only.`;
-
-            console.log('Prompt (attempt 3):\n', genericFallbackPrompt);
-            console.log('Gemini attempt 3: generic fashion fallback (with all references)');
-            const fallbackResult = await generateImageWithStructuredPrompt(model, genericFallbackPrompt, [...(modelPart ? [modelPart] : []), ...referenceParts]);
-            response = await fallbackResult.response;
-            imagePart = extractImagePartFromResponse(response);
-            text = response.text ? response.text() : text;
-        }
-
-        if (!imagePart) {
-            console.log('Third attempt was text-only. Retrying with full synthetic fallback (no input images)...');
-            const syntheticFallbackPrompt = `Create one photorealistic fashion image of a ${gender.toLowerCase()} model wearing a ${normalizedClothChoice}, size ${size}, in ${backgroundScene.toLowerCase()} setting.
-Keep garment type strictly as: ${normalizedClothChoice}.
-Additional notes: ${additionalNotes || 'None'}.
-Resolution/composition: portrait 1080x1920 (9:16).
-No additional inputs are required. Do not ask questions. Return image only.`;
-
-            console.log('Prompt (attempt 4):\n', syntheticFallbackPrompt);
-            console.log('Gemini attempt 4: synthetic fallback (no images)');
-            const syntheticResult = await generateImageWithStructuredPrompt(model, syntheticFallbackPrompt);
-            response = await syntheticResult.response;
-            imagePart = extractImagePartFromResponse(response);
-            text = response.text ? response.text() : text;
-        }
-
         if (imagePart && imagePart.inlineData) {
-            let imageBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
-            let mimeType = imagePart.inlineData.mimeType || 'image/jpeg';
-            let dimensions = getImageDimensions(imageBuffer, mimeType);
+            const imageBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+            const mimeType = imagePart.inlineData.mimeType || 'image/jpeg';
+            const dimensions = getImageDimensions(imageBuffer, mimeType);
             console.log('Generated image dimensions:', dimensions || 'unknown');
-            const originalImageBuffer = imageBuffer;
-            const originalMimeType = mimeType;
-            const originalDimensions = dimensions;
-
-            if (!isDesiredPortrait(dimensions)) {
-                console.log('Generated image is not portrait 9:16. Retrying with strict orientation prompt...');
-                const orientationPrompt = `Generate one photorealistic image only.
-- Mandatory output orientation: portrait.
-- Mandatory composition: 9:16 vertical frame.
-- Target resolution intent: 1080x1920 (do not create landscape).
-- Keep garment type strictly as: ${normalizedClothChoice}.
-- ${modelPart ? "Preserve the exact model identity, face, body shape, and pose from the model image." : "Create a realistic female fashion model."}
-- Gender: ${gender}
-- Size: ${size}
-- Background: ${backgroundScene}
-- Additional notes: ${additionalNotes || 'None'}
-Return image only.`;
-                console.log('Prompt (attempt 5):\n', orientationPrompt);
-                console.log('Gemini attempt 5: strict portrait regeneration');
-                const orientationResult = await generateImageWithStructuredPrompt(
-                    model,
-                    orientationPrompt,
-                    [...(modelPart ? [modelPart] : []), ...referenceParts]
-                );
-                const orientationResponse = await orientationResult.response;
-                const orientationImagePart = extractImagePartFromResponse(orientationResponse);
-                if (orientationImagePart?.inlineData) {
-                    const attemptedBuffer = Buffer.from(orientationImagePart.inlineData.data, 'base64');
-                    const attemptedMimeType = orientationImagePart.inlineData.mimeType || 'image/jpeg';
-                    const attemptedDimensions = getImageDimensions(attemptedBuffer, attemptedMimeType);
-                    console.log('Attempt 5 dimensions:', attemptedDimensions || 'unknown');
-
-                    if (isDesiredPortrait(attemptedDimensions)) {
-                        imageBuffer = attemptedBuffer;
-                        mimeType = attemptedMimeType;
-                        dimensions = attemptedDimensions;
-                        console.log('Attempt 5 accepted: portrait output met.');
-                    } else {
-                        imageBuffer = originalImageBuffer;
-                        mimeType = originalMimeType;
-                        dimensions = originalDimensions;
-                        console.log('Attempt 5 rejected: kept earlier image for better fidelity.');
-                    }
-                }
-            }
 
             console.log('Done: Gemini returned image output successfully.');
 
@@ -339,7 +294,7 @@ Return image only.`;
             success: false,
             error: 'Image generation returned text-only responses',
             description: text,
-            note: 'Tried 4 prompt strategies including a no-image synthetic fallback. Consider changing model or provider if this persists.'
+            note: 'Tried primary prompt + one strict no-image fallback. Consider changing model/provider if this persists.'
         });
 
     } catch (error) {
