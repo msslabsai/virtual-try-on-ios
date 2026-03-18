@@ -20,6 +20,10 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize Gemini AI
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+    throw new Error('Missing GEMINI_API_KEY in backend/.env');
+}
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Helper function to convert file to base64
