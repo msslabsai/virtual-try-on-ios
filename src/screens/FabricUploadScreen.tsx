@@ -39,10 +39,10 @@ export default function FabricUploadScreen({ route, navigation }: any) {
     };
 
     const handleNext = () => {
-        if (!modelImage) {
+        if (clothImages.length === 0) {
             Alert.alert(
                 'Missing Images',
-                'Please upload a model photo to continue.'
+                'Please upload at least one cloth image to continue.'
             );
             return;
         }
@@ -77,7 +77,7 @@ export default function FabricUploadScreen({ route, navigation }: any) {
                             Upload Outfit Details
                         </Text>
                         <Text className="text-slate-400 mb-8">
-                            Add one model photo and up to 3 cloth images (max 4 images total).
+                            Add an optional model photo and up to 3 cloth images.
                         </Text>
 
                         <View className="gap-6 pb-8">
@@ -89,7 +89,7 @@ export default function FabricUploadScreen({ route, navigation }: any) {
                                         </View>
                                         <View>
                                             <Text className="text-white font-bold">Model Photo</Text>
-                                            <Text className="text-slate-500 text-xs">Required</Text>
+                                            <Text className="text-slate-500 text-xs">Optional</Text>
                                         </View>
                                     </View>
                                     {modelImage && (

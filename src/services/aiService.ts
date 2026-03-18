@@ -1,6 +1,6 @@
 export interface TryOnRequest {
     gender: string;
-    clothChoices?: string[];
+    clothChoice?: string;
     fabricImage?: string; // URI (legacy)
     modelImage?: string; // URI
     upperFabricImage?: string; // URI (legacy)
@@ -24,10 +24,9 @@ export interface TryOnResponse {
 export async function generateVirtualTryOn(
     request: TryOnRequest
 ): Promise<TryOnResponse> {
-    // IMPORTANT: Replace this IP with your computer's local IP address
-    // Find it with: hostname -I (Linux) or ipconfig (Windows) or ifconfig (Mac)
-    // On physical device with Expo Go, use your computer's IP (e.g., 10.243.49.135)
-    const API_URL = process.env.EXPO_PUBLIC_TRYON_API_URL || 'http://10.243.49.135:3000/api/virtual-tryon';
+    // Only allow Expo public env var so we never read stale server-side/private keys.
+    const configuredUrl = process.env.EXPO_PUBLIC_TRYON_API_URL?.trim() || '';
+    const API_URL = /^https?:\/\//i.test(configuredUrl) ? configuredUrl : '';
 
     console.log('Using API URL:', API_URL);
 
@@ -35,7 +34,7 @@ export async function generateVirtualTryOn(
         console.error('API URL not configured');
         return {
             success: false,
-            error: 'API URL not configured.',
+            error: 'API URL not configured. Set EXPO_PUBLIC_TRYON_API_URL in the root .env file.',
         };
     }
 
@@ -68,8 +67,8 @@ export async function generateVirtualTryOn(
         }
 
         formData.append('gender', request.gender);
-        if (request.clothChoices && request.clothChoices.length > 0) {
-            formData.append('clothChoices', JSON.stringify(request.clothChoices));
+        if (request.clothChoice) {
+            formData.append('clothChoice', request.clothChoice);
         }
         formData.append('size', request.modelFit || 'M');
         formData.append('backgroundScene', request.backgroundScene || 'Studio');

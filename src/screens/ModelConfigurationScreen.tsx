@@ -10,7 +10,7 @@ const ATTIRE_OPTIONS = [
     { value: 'lehenga', label: 'Lehenga', icon: 'checkroom' },
     { value: 'dress', label: 'Dress', icon: 'checkroom' },
     { value: 'kurti', label: 'Kurti', icon: 'checkroom' },
-    { value: 'indian_rajputi_poshak', label: 'Indian Rajputi Poshak', icon: 'checkroom' }
+    { value: 'indian_rajputi_poshak', label: 'Traditional Rajputi Poshak', icon: 'checkroom' }
 ];
 
 const CUSTOM_ATTIRE_STORAGE_KEY = 'custom_attire_options';
@@ -22,7 +22,7 @@ type AttireOption = {
 };
 
 export default function ModelConfigurationScreen({ navigation }: any) {
-    const [selectedAttires, setSelectedAttires] = useState<string[]>(['saree']);
+    const [selectedAttire, setSelectedAttire] = useState<string>('saree');
     const [customAttires, setCustomAttires] = useState<AttireOption[]>([]);
     const [newAttireName, setNewAttireName] = useState('');
 
@@ -45,10 +45,8 @@ export default function ModelConfigurationScreen({ navigation }: any) {
 
     const allAttires = useMemo(() => [...ATTIRE_OPTIONS, ...customAttires], [customAttires]);
 
-    const toggleAttire = (value: string) => {
-        setSelectedAttires(prev =>
-            prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]
-        );
+    const selectAttire = (value: string) => {
+        setSelectedAttire(value);
     };
 
     const toSlug = (input: string) =>
@@ -89,14 +87,16 @@ export default function ModelConfigurationScreen({ navigation }: any) {
     };
 
     const handleContinue = () => {
-        if (selectedAttires.length === 0) {
-            Alert.alert('Select Outfit', 'Please select at least one outfit to continue.');
+        if (!selectedAttire) {
+            Alert.alert('Select Outfit', 'Please select an outfit to continue.');
             return;
         }
+        const selectedOption = allAttires.find(option => option.value === selectedAttire);
         navigation.navigate('FabricUpload', {
             modelConfig: {
                 selectedGender: 'Female',
-                selectedAttires: selectedAttires
+                selectedAttire,
+                selectedAttireLabel: selectedOption?.label || selectedAttire
             }
         });
     };
@@ -149,27 +149,27 @@ export default function ModelConfigurationScreen({ navigation }: any) {
                             {allAttires.map((option) => (
                                 <TouchableOpacity
                                     key={option.value}
-                                    onPress={() => toggleAttire(option.value)}
-                                    className={`flex-row items-center p-4 rounded-2xl border ${selectedAttires.includes(option.value)
+                                    onPress={() => selectAttire(option.value)}
+                                    className={`flex-row items-center p-4 rounded-2xl border ${selectedAttire === option.value
                                         ? 'bg-primary/20 border-primary'
                                         : 'bg-surface-dark border-white/10'
                                         }`}
                                 >
-                                    <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${selectedAttires.includes(option.value) ? 'bg-primary' : 'bg-white/10'
+                                    <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${selectedAttire === option.value ? 'bg-primary' : 'bg-white/10'
                                         }`}>
                                         <MaterialIcons
                                             name={option.icon as any}
                                             size={24}
-                                            color={selectedAttires.includes(option.value) ? 'white' : '#94a3b8'}
+                                            color={selectedAttire === option.value ? 'white' : '#94a3b8'}
                                         />
                                     </View>
                                     <View className="flex-1">
-                                        <Text className={`text-lg font-bold ${selectedAttires.includes(option.value) ? 'text-white' : 'text-slate-300'
+                                        <Text className={`text-lg font-bold ${selectedAttire === option.value ? 'text-white' : 'text-slate-300'
                                             }`}>
                                             {option.label}
                                         </Text>
                                     </View>
-                                    {selectedAttires.includes(option.value) && (
+                                    {selectedAttire === option.value && (
                                         <MaterialIcons name="check-circle" size={24} color="#9333ea" />
                                     )}
                                 </TouchableOpacity>
