@@ -1,8 +1,11 @@
+import { Platform } from 'react-native';
+
 export interface TryOnRequest {
     gender: string;
     clothChoice?: string;
     fabricImage?: string; // URI (legacy)
     modelImage?: string; // URI
+    designImage?: string; // URI (optional design-only reference)
     upperFabricImage?: string; // URI (legacy)
     bottomFabricImage?: string; // URI (legacy)
     clothImages?: string[]; // URIs
@@ -24,7 +27,13 @@ export interface TryOnResponse {
 export async function generateVirtualTryOn(
     request: TryOnRequest
 ): Promise<TryOnResponse> {
-    const API_URL = 'https://virtual-try-on-ios.onrender.com/api/virtual-tryon';
+    const API_URL_OVERRIDE = process.env.EXPO_PUBLIC_TRYON_API_URL || process.env.EXPO_PUBLIC_API_URL;
+    // const API_URL = 'https://virtual-try-on-ios.onrender.com/api/virtual-tryon';
+    const API_URL =
+        API_URL_OVERRIDE ||
+        (Platform.OS === 'android'
+            ? 'http://10.0.2.2:3000/api/virtual-tryon'
+            : 'http://localhost:3000/api/virtual-tryon');
 
     console.log('Using API URL:', API_URL);
 
@@ -52,6 +61,7 @@ export async function generateVirtualTryOn(
         };
 
         appendImage('model_image', request.modelImage);
+        appendImage('design_image', request.designImage);
 
         // Legacy single images
         appendImage('image', request.fabricImage);

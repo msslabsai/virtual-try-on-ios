@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function FabricUploadScreen({ route, navigation }: any) {
     const { modelConfig } = route.params;
     const [modelImage, setModelImage] = useState<string | null>(null);
+    const [designImage, setDesignImage] = useState<string | null>(null);
     const [clothImages, setClothImages] = useState<string[]>([]);
 
     const pickImage = async (useCamera: boolean, onPick: (uri: string) => void) => {
@@ -51,6 +52,7 @@ export default function FabricUploadScreen({ route, navigation }: any) {
         navigation.navigate('Preview', {
             previews: {
                 model: modelImage,
+                designImage,
                 clothImages: clothImages
             },
             modelConfig
@@ -77,7 +79,7 @@ export default function FabricUploadScreen({ route, navigation }: any) {
                             Upload Outfit Details
                         </Text>
                         <Text className="text-slate-400 mb-8">
-                            Add an optional model photo and up to 3 cloth images.
+                            Add an optional model photo, an optional design image, and up to 3 cloth images.
                         </Text>
 
                         <View className="gap-6 pb-8">
@@ -116,6 +118,49 @@ export default function FabricUploadScreen({ route, navigation }: any) {
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             onPress={() => pickImage(true, (uri) => setModelImage(uri))}
+                                            className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
+                                        >
+                                            <Text className="text-white font-medium">Camera</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+
+                            <View className="bg-surface-dark border border-white/10 rounded-2xl p-4">
+                                <View className="flex-row items-center justify-between mb-4">
+                                    <View className="flex-row items-center gap-3">
+                                        <View className="w-10 h-10 bg-primary/20 rounded-full items-center justify-center">
+                                            <MaterialIcons name="design-services" size={20} color="#9333ea" />
+                                        </View>
+                                        <View>
+                                            <Text className="text-white font-bold">Design</Text>
+                                            <Text className="text-slate-500 text-xs">Optional</Text>
+                                        </View>
+                                    </View>
+                                    {designImage && (
+                                        <TouchableOpacity
+                                            onPress={() => setDesignImage(null)}
+                                            className="bg-red-500/20 p-2 rounded-full"
+                                        >
+                                            <MaterialIcons name="delete" size={20} color="#ef4444" />
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+
+                                {designImage ? (
+                                    <View className="w-full h-48 rounded-xl overflow-hidden bg-black/50">
+                                        <Image source={{ uri: designImage }} className="w-full h-full" resizeMode="cover" />
+                                    </View>
+                                ) : (
+                                    <View className="flex-row gap-3">
+                                        <TouchableOpacity
+                                            onPress={() => pickImage(false, (uri) => setDesignImage(uri))}
+                                            className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
+                                        >
+                                            <Text className="text-white font-medium">Gallery</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => pickImage(true, (uri) => setDesignImage(uri))}
                                             className="flex-1 bg-white/5 py-3 rounded-xl items-center justify-center border border-white/10"
                                         >
                                             <Text className="text-white font-medium">Camera</Text>

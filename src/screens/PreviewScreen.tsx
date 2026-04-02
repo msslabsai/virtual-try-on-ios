@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, ActivityIndicator, Alert, Share, ScrollView, TextInput, Platform, KeyboardAvoidingView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import * as Sharing from 'expo-sharing';
 
 export default function PreviewScreen({ route, navigation }: any) {
     const { previews, modelConfig } = route.params;
+    const scrollRef = useRef<ScrollView>(null);
 
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -27,6 +28,7 @@ export default function PreviewScreen({ route, navigation }: any) {
                 gender: modelConfig.selectedGender,
                 clothChoice: modelConfig.selectedAttireLabel || modelConfig.selectedAttire,
                 modelImage: previews.model,
+                designImage: previews.designImage,
                 clothImages: previews.clothImages || [],
                 modelFit,
                 backgroundScene,
@@ -166,9 +168,12 @@ export default function PreviewScreen({ route, navigation }: any) {
                         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
                     >
                         <ScrollView
+                            ref={scrollRef}
                             className="flex-1 w-full"
-                            contentContainerStyle={{ paddingBottom: 100 }}
+                            contentContainerStyle={{ paddingBottom: 220 }}
                             keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="interactive"
+                            automaticallyAdjustKeyboardInsets
                             showsVerticalScrollIndicator={false}
                         >
                             <View className="w-full px-4 pt-6 pb-6 items-center">
@@ -262,19 +267,27 @@ export default function PreviewScreen({ route, navigation }: any) {
                                 <View className="w-full">
                                     <View className="flex-row justify-between mb-3">
                                         <Text className="text-slate-400 text-sm font-bold uppercase">Additional Notes</Text>
-                                        <Text className="text-slate-500 text-xs">{additionalNotes.length}/100</Text>
+                                        <Text className="text-slate-500 text-xs">{additionalNotes.length}/800</Text>
                                     </View>
-                                    <TextInput
-                                        value={additionalNotes}
-                                        onChangeText={setAdditionalNotes}
-                                        placeholder="E.g. Make it tighter, brighter colors..."
-                                        placeholderTextColor="#64748b"
-                                        multiline
-                                        maxLength={100}
-                                        numberOfLines={3}
-                                        className="w-full bg-surface-dark border border-white/10 rounded-xl p-4 text-white"
-                                        style={{ textAlignVertical: 'top', minHeight: 80 }}
-                                    />
+                                    <View className="bg-surface-dark border border-white/10 rounded-xl px-4 py-3">
+                                        <TextInput
+                                            value={additionalNotes}
+                                            onChangeText={setAdditionalNotes}
+                                            onFocus={() => {
+                                                setTimeout(() => {
+                                                    scrollRef.current?.scrollToEnd({ animated: true });
+                                                }, 120);
+                                            }}
+                                            placeholder="Add optional instructions for fit, pose, lighting, or finishing details..."
+                                            placeholderTextColor="#64748b"
+                                            multiline
+                                            maxLength={800}
+                                            numberOfLines={5}
+                                            scrollEnabled
+                                            className="w-full text-white"
+                                            style={{ textAlignVertical: 'top', minHeight: 110, maxHeight: 180 }}
+                                        />
+                                    </View>
                                 </View>
 
                                 <TouchableOpacity
