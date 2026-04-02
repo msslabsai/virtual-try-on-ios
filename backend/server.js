@@ -123,7 +123,7 @@ function isDesiredPortrait(dimensions) {
 function normalizeAdditionalNotes(rawNotes) {
     const notes = String(rawNotes || '').trim().replace(/\s+/g, ' ');
     if (!notes) return '';
-    return notes.slice(0, 600);
+    return notes.slice(0, 800);
 }
 
 function buildAdditionalNotesSection(notes) {
@@ -181,6 +181,11 @@ app.post('/api/virtual-tryon', upload.any(), async (req, res) => {
             f.fieldname === 'modelImage' ||
             f.fieldname === 'model'
         );
+        const designImageFile = uploadedFiles.find(f =>
+            f.fieldname === 'design_image' ||
+            f.fieldname === 'designImage' ||
+            f.fieldname === 'design'
+        );
         const referenceImageFiles = uploadedFiles.filter(f => f.fieldname.startsWith('cloth_images'));
 
         if (referenceImageFiles.length === 0) {
@@ -190,6 +195,7 @@ app.post('/api/virtual-tryon', upload.any(), async (req, res) => {
 
         // Prepare images for Gemini
         const modelPart = modelImageFile ? fileToGenerativePart(modelImageFile.path, 'image/jpeg') : null;
+        const designPart = designImageFile ? fileToGenerativePart(designImageFile.path, 'image/jpeg') : null;
         const referenceParts = referenceImageFiles.map(f => fileToGenerativePart(f.path, 'image/jpeg'));
         if (!modelPart) {
             console.log('No model image provided; proceeding with cloth reference image(s) only.');
@@ -209,8 +215,8 @@ ${additionalNotesSection}
 
 Instructions:
 1. Always use all provided reference image(s) as the primary source of truth. Never ignore them.
-2. Analyze the provided reference image(s). If they are clothing images, apply the exact texture, color, and pattern.
-3. If a reference image is not clothing (for example landscape/object/photo), still generate a valid outfit by using the image as visual inspiration (palette, mood, texture cues), and DO NOT ask for another image.
+2. For cloth image reference(s): apply the exact garment color, print/pattern, and texture from these cloth image(s).
+3. ${designPart ? "Use the provided DESIGN image strictly for garment design structure only (silhouette, cut, neckline, sleeves, drape, seam/embellishment placement). Do NOT copy or transfer any colors, prints, patterns, or textures from the design image." : "No separate design image is provided."}
 4. ${modelPart ? "Use the provided model image as identity reference and preserve the person's face, body proportions, pose, and lighting." : "No model image is provided; generate a realistic female fashion model that matches the requested size/fit and garment styling."}
 5. The final outfit must strictly match Clothing Choice "${normalizedClothChoice}" and must not change to any other garment type.
 6. Ensure the clothing fit follows size ${size} and drapes naturally.
@@ -231,13 +237,18 @@ Output: A single high-quality, photorealistic image showing the complete virtual
         console.log('Prompt config:', {
             clothChoice: normalizedClothChoice,
             hasModelImage: Boolean(modelPart),
+            hasDesignImage: Boolean(designPart),
             referenceImages: referenceParts.length,
             size,
             backgroundScene,
             additionalNotes: normalizedAdditionalNotes || 'none'
         });
 
-        const inputImageParts = [...(modelPart ? [modelPart] : []), ...referenceParts];
+        const inputImageParts = [
+            ...(modelPart ? [modelPart] : []),
+            ...(designPart ? [designPart] : []),
+            ...referenceParts
+        ];
         console.log('Gemini attempt 1: primary prompt');
         logPrompt('attempt 1', prompt);
         const result = await generateImageWithStructuredPrompt(model, prompt, inputImageParts);
@@ -251,7 +262,8 @@ Output: A single high-quality, photorealistic image showing the complete virtual
             const retryPrompt = `Generate exactly one photorealistic fashion image now.
 - Never ask for another input.
 - Always use all provided reference image(s) as primary source of truth and never ignore them.
-- If reference image is not clothing, infer outfit design from its colors/textures and create wearable ${normalizedClothChoice}.
+- Use cloth image reference(s) for garment color, pattern/print, and texture fidelity.
+- ${designPart ? "Use the design image strictly for design structure only (shape, silhouette, cut, seam/embellishment placement). Never transfer design-image colors, patterns, prints, or texture to the outfit." : "No separate design image is provided."}
 - Keep garment type strictly as: ${normalizedClothChoice}.
 - ${modelPart ? "Preserve the model identity, face, body shape, pose, and lighting from the model image." : "Create a realistic female fashion model."}
 - Size: ${size}
