@@ -24,9 +24,7 @@ export interface TryOnResponse {
 export async function generateVirtualTryOn(
     request: TryOnRequest
 ): Promise<TryOnResponse> {
-    // Only allow Expo public env var so we never read server-side/private keys.
-    const configuredUrl = process.env.EXPO_PUBLIC_TRYON_API_URL?.trim() || '';
-    const API_URL = /^https?:\/\//i.test(configuredUrl) ? configuredUrl : '';
+    const API_URL = 'https://virtual-try-on-ios.onrender.com/api/virtual-tryon';
 
     console.log('Using API URL:', API_URL);
 
@@ -34,7 +32,7 @@ export async function generateVirtualTryOn(
         console.error('API URL not configured');
         return {
             success: false,
-            error: 'API URL not configured. Set EXPO_PUBLIC_TRYON_API_URL in the root .env file.',
+            error: 'API URL not configured.',
         };
     }
 
