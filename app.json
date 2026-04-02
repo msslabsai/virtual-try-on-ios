@@ -4,10 +4,10 @@
     "slug": "virtual-try-on-ios",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/favicon_io/android-chrome-512x512.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/favicon_io/android-chrome-512x512.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,7 +16,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/favicon_io/android-chrome-512x512.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.anonymous.virtualtryonios",
@@ -30,7 +30,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon_io/android-chrome-512x512.png"
     },
     "plugins": [
       [
